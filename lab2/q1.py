@@ -76,6 +76,9 @@ def pad(pt):
         pt += b'\x00'
     return pt
 
+def unpad(data):
+    return data.rstrip(b'\x00')
+
 def initial_permute(block):
     block_bits = bin(bytes_to_long(block))[2:].zfill(64)
     assert len(block_bits) == 64, "weird block bro"
@@ -220,12 +223,31 @@ def encrypt(data : bytes, key : bytes):
 
     return encrypted
         
-    
-    
+def decrypt(data: bytes, key: bytes):
+    assert len(key) <= 8
+
+    blocks = [data[i:i + 8] for i in range(0, len(data), 8)]
+    decrypted = b''
+    keys = get_round_keys(key)
+
+    for block in blocks:
+        block = initial_permute(block)
+        for i in range(15, -1, -1):
+            block = feistal_round(block, keys[i])
+
+        block = block[4:] + block[:4]
+
+        block = IP_1(block)
+        decrypted += block
+
+    return decrypted
+
 m = b'Confidential Data'
 k = b"A1B2C3D4"
-des1 = encrypt(m, k) 
-print(des1)
+ct = encrypt(m, k) 
+print(ct)
+pt = decrypt(ct, k)
+print(unpad(pt))
 
 # ciph = DES.new(k, DES.MODE_ECB)
 # test = ciph.encrypt(pad(m))
