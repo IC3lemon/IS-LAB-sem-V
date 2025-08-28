@@ -58,7 +58,6 @@ S_BOXES = [
         [2, 1, 14, 7, 4, 10, 8, 13, 15, 12, 9, 0, 3, 5, 6, 11],
     ],
 ]
-import os
 
 def long_to_bytes(long : int, length=8):
     return int.to_bytes(long, length, 'big')
@@ -247,3 +246,4 @@ print(ct)
 pt = decrypt(ct, k) # b'Confidential Data'
 print(unpad(pt)) 
 
+assert pt == b'Confidential Data'
