@@ -225,10 +225,10 @@ def decrypt(data: bytes, key: bytes):
         decrypted_data += decrypt_block(block, round_keys)
     return unpad(decrypted_data, 16)
 
-key = bytes.fromhex("0123456789ABCDEF0123456789ABCDEF")
-
-msg = b"Sensitive Information"
-ct = encrypt(msg, key) # b'\x99\xbe~7\x14\xab\x88\rI\'YkVX\x13\x0b\x05[zci-\r\xf8\x00"\x8e\xed)\x9aB,'
-print(ct)
-pt = decrypt(ct, key) # b'Sensitive Information'
-print(pt)
+if __name__ == "__main__":
+    key = bytes.fromhex("0123456789ABCDEF0123456789ABCDEF")
+    msg = b"Sensitive Information"
+    ct = encrypt(msg, key) # b'\x99\xbe~7\x14\xab\x88\rI\'YkVX\x13\x0b\x05[zci-\r\xf8\x00"\x8e\xed)\x9aB,'
+    print(ct)
+    pt = decrypt(ct, key) # b'Sensitive Information'
+    print(pt)

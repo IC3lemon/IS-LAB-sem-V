@@ -239,11 +239,12 @@ def decrypt(data: bytes, key: bytes):
 
     return decrypted
 
-m = b'Confidential Data'
-k = b"A1B2C3D4"
-ct = encrypt(m, k)  # b" \x08\x9cVi;K\nhS\x04\x93\x0b\xaf>\xd4+TdN\x88'F\xfa"
-print(ct)
-pt = decrypt(ct, k) # b'Confidential Data'
-print(unpad(pt)) 
+if __name__ == "__main__":
+    m = b'Confidential Data'
+    k = b"A1B2C3D4"
+    ct = encrypt(m, k)  # b" \x08\x9cVi;K\nhS\x04\x93\x0b\xaf>\xd4+TdN\x88'F\xfa"
+    print(ct)
+    pt = decrypt(ct, k) # b'Confidential Data'
+    print(unpad(pt)) 
 
-assert pt == b'Confidential Data'
+    assert pt == b'Confidential Data'

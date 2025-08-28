@@ -1,0 +1,30 @@
+# Encrypt   the   message   "Classified   Text"   using   Triple   DES   with   the   key
+# "1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF".   Then
+# decrypt the ciphertext to verify the original message.
+
+from q1 import *
+
+m = b"Classified Text"
+k = bytes.fromhex("1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF")
+
+def derive_keys(key):
+    return [k[i:i+8] for i in range(0, 24, 8)]
+
+def encrypt(msg : bytes, key : bytes):
+    ks = derive_keys(key)
+    msg = pad(msg)
+
+    enc = encrypt(decrypt(encrypt(msg, ks[0]), ks[1]), ks[2])
+    return enc 
+
+def decrypt(msg : bytes, key : bytes):
+    ks = derive_keys(key)
+    msg = pad(msg)
+
+    dec = decrypt(encrypt(decrypt(msg, ks[2]), ks[1]), ks[0])
+    return dec
+
+ct = encrypt(m, k)
+print(f"{ct = }")
+pt = decrypt(ct, k)
+print(f"{pt = }")
