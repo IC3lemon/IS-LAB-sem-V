@@ -9,6 +9,7 @@ from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Hash import HMAC, SHA256
 
 def gen_file(f, s):
+    """Generates a dummy file of a specified size in MB."""
     sz = s * 1024 * 1024
     if not os.path.exists(f) or os.path.getsize(f) != sz:
         print(f"Generating dummy file: {f} ({s} MB)...")
@@ -17,50 +18,63 @@ def gen_file(f, s):
         print("File generated successfully.")
 
 def rsa_enc(pf, pk):
+    """Encrypts a file using RSA for key exchange and DES3 for file encryption."""
+    # Generate a random 24-byte session key for DES3
     sk = get_random_bytes(24)
+    # Encrypt the session key with the recipient's RSA public key
     c_rsa = PKCS1_OAEP.new(pk, hashAlgo=SHA256)
     esk = c_rsa.encrypt(sk)
+    # Encrypt the file using the session key and DES3
     c_des = DES3.new(sk, DES3.MODE_EAX)
     n = c_des.nonce
     with open(pf, "rb") as f:
         p = f.read()
     c, t = c_des.encrypt_and_digest(p)
-    return n + c + t, esk
+    return n, c, t, esk
 
-def rsa_dec(ed, ek, prk):
+def rsa_dec(n, c, t, ek, prk):
+    """Decrypts a file using RSA for key exchange and DES3 for file encryption."""
+    # Decrypt the session key with the recipient's RSA private key
     c_rsa = PKCS1_OAEP.new(prk, hashAlgo=SHA256)
     sk = c_rsa.decrypt(ek)
-    n = ed[:16]
-    c = ed[16:-16]
-    t = ed[-16:]
+    # Decrypt the file using the session key and DES3
     c_des = DES3.new(sk, DES3.MODE_EAX, nonce=n)
     p = c_des.decrypt_and_verify(c, t)
     return p
 
 def ecc_enc(pf, pk):
+    """Encrypts a file using ECC for key exchange (ECDH) and DES3 for file encryption."""
+    # Generate an ephemeral ECC key pair
     ek = ECC.generate(curve="secp256r1")
     epk = ek.public_key().pointQ
-    esk = ek.d
-    ss = epk.x * pk.x
+    # Derive a shared secret using ECDH
+    ss = (ek.d * pk.pointQ).x
+    # Derive the DES3 session key from the shared secret with a salt
     s = get_random_bytes(16)
-    dk = PBKDF2(str(ss).encode(), s, dkLen=24, count=100000, hmac_hash_module=SHA256)
+    # Hash the shared secret to a consistent size for PBKDF2
+    h = SHA256.new(int(ss).to_bytes((int(ss).bit_length() + 7) // 8, 'big')).digest()
+    dk = PBKDF2(h, s, dkLen=24, count=100000, hmac_hash_module=SHA256)
+    # Encrypt the file using the derived session key and DES3
     c_des = DES3.new(dk, DES3.MODE_EAX)
     n = c_des.nonce
     with open(pf, "rb") as f:
         p = f.read()
     c, t = c_des.encrypt_and_digest(p)
-    return n + c + t, epk.x.to_bytes() + epk.y.to_bytes()
+    # Return the salt and ephemeral public key for decryption
+    return n, c, t, s, epk.x.to_bytes() + epk.y.to_bytes()
 
-def ecc_dec(ed, epk_b, prk):
+def ecc_dec(n, c, t, s, epk_b, prk):
+    """Decrypts a file using ECC for key exchange (ECDH) and DES3 for file encryption."""
+    # Reconstruct the ephemeral public key
     x = int.from_bytes(epk_b[:32], 'big')
     y = int.from_bytes(epk_b[32:], 'big')
     epk = ECC.EccPoint(x, y, curve="secp256r1")
-    ss = prk.d * epk.x
-    s = ed[:16]
-    dk = PBKDF2(str(ss).encode(), s, dkLen=24, count=100000, hmac_hash_module=SHA256)
-    n = ed[:16]
-    c = ed[16:-16]
-    t = ed[-16:]
+    # Derive the shared secret using ECDH
+    ss = (prk.d * epk).x
+    # Hash the shared secret to a consistent size for PBKDF2
+    h = SHA256.new(int(ss).to_bytes((int(ss).bit_length() + 7) // 8, 'big')).digest()
+    dk = PBKDF2(h, s, dkLen=24, count=100000, hmac_hash_module=SHA256)
+    # Decrypt the file using the derived session key and DES3
     c_des = DES3.new(dk, DES3.MODE_EAX, nonce=n)
     p = c_des.decrypt_and_verify(c, t)
     return p
@@ -80,16 +94,16 @@ def main():
     rk = RSA.generate(2048)
     res["RSA"]["kgt"] = time.perf_counter() - st
     st = time.perf_counter()
-    e_1, ek_1 = rsa_enc(sf, rk.public_key())
+    n_1, c_1, t_1, ek_1 = rsa_enc(sf, rk.public_key())
     res["RSA"]["1me"] = time.perf_counter() - st
     st = time.perf_counter()
-    d_1 = rsa_dec(e_1, ek_1, rk)
+    d_1 = rsa_dec(n_1, c_1, t_1, ek_1, rk)
     res["RSA"]["1md"] = time.perf_counter() - st
     st = time.perf_counter()
-    e_10, ek_10 = rsa_enc(lf, rk.public_key())
+    n_10, c_10, t_10, ek_10 = rsa_enc(lf, rk.public_key())
     res["RSA"]["10me"] = time.perf_counter() - st
     st = time.perf_counter()
-    d_10 = rsa_dec(e_10, ek_10, rk)
+    d_10 = rsa_dec(n_10, c_10, t_10, ek_10, rk)
     res["RSA"]["10md"] = time.perf_counter() - st
     
     print("\n--- Testing ECC (secp256r1) ---")
@@ -97,16 +111,16 @@ def main():
     ek = ECC.generate(curve="secp256r1")
     res["ECC"]["kgt"] = time.perf_counter() - st
     st = time.perf_counter()
-    e_1_ecc, e_1_epk_b = ecc_enc(sf, ek.public_key().pointQ)
+    n_1_ecc, c_1_ecc, t_1_ecc, s_1_ecc, epk_b_1_ecc = ecc_enc(sf, ek.public_key())
     res["ECC"]["1me"] = time.perf_counter() - st
     st = time.perf_counter()
-    d_1_ecc = ecc_dec(e_1_ecc, e_1_epk_b, ek)
+    d_1_ecc = ecc_dec(n_1_ecc, c_1_ecc, t_1_ecc, s_1_ecc, epk_b_1_ecc, ek)
     res["ECC"]["1md"] = time.perf_counter() - st
     st = time.perf_counter()
-    e_10_ecc, e_10_epk_b = ecc_enc(lf, ek.public_key().pointQ)
+    n_10_ecc, c_10_ecc, t_10_ecc, s_10_ecc, epk_b_10_ecc = ecc_enc(lf, ek.public_key())
     res["ECC"]["10me"] = time.perf_counter() - st
     st = time.perf_counter()
-    d_10_ecc = ecc_dec(e_10_ecc, e_10_epk_b, ek)
+    d_10_ecc = ecc_dec(n_10_ecc, c_10_ecc, t_10_ecc, s_10_ecc, epk_b_10_ecc, ek)
     res["ECC"]["10md"] = time.perf_counter() - st
 
     print("\n--- Performance Results ---")
@@ -120,3 +134,6 @@ def main():
     
     os.remove(sf)
     os.remove(lf)
+
+if __name__ == "__main__":
+    main()
