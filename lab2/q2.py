@@ -1,5 +1,6 @@
 from Crypto.Util.number import *
 from Crypto.Util.Padding import *
+from Crypto.Cipher import AES
 
 
 S_BOX = [
@@ -61,7 +62,7 @@ def key_expansion(key: bytes):
     try:
         rounds = N_ROUNDS[len(key) * 8]
     except KeyError:
-        raise ValueError("Invalid key length. Must be 16, 24, or 32 bytes.")
+        raise ValueError("Invalid key length brah. Must be 16, 24, or 32 bytes.")
 
     Nk = len(key) // 4
     W = [key[i:i + 4] for i in range(0, len(key), 4)]
@@ -79,6 +80,7 @@ def key_expansion(key: bytes):
         W.append(word)
 
     round_keys = [b''.join(W[i:i + 4]) for i in range(0, 4 * (rounds + 1), 4)]
+    print(round_keys)
     return round_keys
 
 def sub_bytes(state):
@@ -96,24 +98,23 @@ def inv_sub_bytes(state):
     return new_state
 
 def shift_rows(state):
-    new_state = [
+    return [
         state[0],
         state[1][1:] + state[1][:1],
         state[2][2:] + state[2][:2],
         state[3][3:] + state[3][:3]
     ]
-    return new_state
 
 def inv_shift_rows(state):
-    new_state = [
+    return [
         state[0],
         state[1][3:] + state[1][:3],
         state[2][2:] + state[2][:2],
         state[3][1:] + state[3][:1]
     ]
-    return new_state
+    
 
-def g_mul(a, b): # a * b (GF(2**8))
+def g_mul(a, b): # a * b (GF(2**8)) the weird xor one though
     p = 0
     for i in range(8):
         if b & 1:
@@ -226,9 +227,13 @@ def decrypt(data: bytes, key: bytes):
     return unpad(decrypted_data, 16)
 
 if __name__ == "__main__":
-    key = bytes.fromhex("0123456789ABCDEF0123456789ABCDEF")
-    msg = b"Sensitive Information"
-    ct = encrypt(msg, key) # b'\x99\xbe~7\x14\xab\x88\rI\'YkVX\x13\x0b\x05[zci-\r\xf8\x00"\x8e\xed)\x9aB,'
-    print(ct)
-    pt = decrypt(ct, key) # b'Sensitive Information'
-    print(pt)
+    msg = pad(b'pakoda', 16)
+    ct0 = encrypt(msg, b'a'*16)[:len(msg)] 
+    print(ct0)
+
+    c = AES.new(b'a'*16, AES.MODE_ECB)
+    ct1 = c.encrypt(msg)
+    print(ct1)
+
+    assert ct0 == ct1 
+    print('aight lesgo')
